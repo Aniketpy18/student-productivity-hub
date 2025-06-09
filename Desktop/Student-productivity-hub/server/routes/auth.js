@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prisma');
-
+const authenticateToken = require('../middleware/authenticateToken');
 const router = express.Router();
 
 // REGISTER
@@ -52,21 +52,35 @@ router.post('/register', async (req, res) => {
 // LOGIN
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log("Login attempt:", email);
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!user) {
+      console.log("User not found");
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     const valid = await bcrypt.compare(password, user.password);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!valid) {
+      console.log("Invalid password");
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log("Login successful, token issued");
 
     res.json({ token });
   } catch (err) {
-    console.error(err);
+    console.error("Login error:", err);
     res.status(500).json({ error: 'Login failed' });
   }
+});
+
+
+router.get('/some-protected-route', authenticateToken, (req, res) => {
+  res.send(`You are user ${req.user.id}`);
 });
 
 module.exports = router;
